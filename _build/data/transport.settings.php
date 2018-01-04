@@ -37,4 +37,13 @@ $settings['xrouting.allow_debug_info']->fromArray(array(
     'area' => 'common',
 ),'',true,true);
 
+$settings['xrouting.force_primary_url']= $modx->newObject('modSystemSetting');
+$settings['xrouting.force_primary_url']->fromArray(array(
+    'key' => 'xrouting.force_primary_url',
+    'value' => true,
+    'xtype' => 'combo-boolean',
+    'namespace' => 'xrouting',
+    'area' => 'common',
+),'',true,true);
+
 return $settings;
