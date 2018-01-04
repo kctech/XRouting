@@ -92,22 +92,19 @@ switch ($modx->event->name) {
 
         if (!empty($contexts)) {
             $http_host = $_SERVER['HTTP_HOST'];
+            $requestedURL = $_REQUEST[$modx->getOption('request_param_alias', null, 'q')];
+            
             if ($modx->getOption('xrouting.include_www', null, true)) {
                 $http_host = str_replace('www.','',$http_host);
             }
             
-            $modx_base_url = false;
-            $baseUrlSetting = $modx->getObject('modSystemSetting', 'base_url');
-            if ($baseUrlSetting) $modx_base_url = $baseUrlSetting->get('value');
-            if (!$modx_base_url) $modx_base_url = MODX_BASE_URL;
-            
+            $modx_base_url = $modx->getOption('base_url', null, MODX_BASE_URL);
             $requestUrl = str_replace('//','/',$modx_base_url.$_REQUEST[$modx->getOption('request_param_alias', null, 'q')]);
             $matches = array();
             
             
         // find matching hosts
             $matched_contexts = $contexts['_hosts'][$http_host];
-            
             
             foreach ((array) $matched_contexts as $index => $ckey) {
                 
@@ -118,35 +115,34 @@ switch ($modx->event->name) {
                 }
             }
 
+        
+        
         // modify request for the matched context
             if (!empty($matches)) {
                 
                 $cSettings = $contexts[$matches[max(array_keys($matches))]];
                 $cKey = $matches[max(array_keys($matches))];
                 
+                //force use primary site URL
+                if ($modx->getOption('xrouting.force_primary_url', null, true)) {
+                    if($http_host != $cSettings['http_host']) {
+                        $modx->sendRedirect($cSettings['site_url'].$requestedURL);
+                        $use_primary = "CHANGE: ".$cSettings['site_url'].$requestedURL;
+                    }else{
+                        $use_primary = "OK, no change required";
+                    }
+                }
+                
                 // do we need to switch the context?
                 if ($modx->context->get('key') != $cKey) {
                     $modx->switchContext($cKey);
-                    
-                    $cultureKey = $modx->getOption('cultureKey', null, 'en');
-                    if (!empty($_SESSION['cultureKey'])) $cultureKey = $_SESSION['cultureKey'];
-                    if (!empty($_REQUEST['cultureKey'])) $cultureKey = $_REQUEST['cultureKey'];
-                    $modx->cultureKey = $cultureKey;
-                    $modx->setOption('cultureKey', $cultureKey);
-        
-                    // set locale since $modx->_initCulture is called before OnHandleRequest
-                    if ($modx->getOption('setlocale', null, true)) {
-                        $locale = setlocale(LC_ALL, null);
-                        setlocale(LC_ALL, $modx->getOption('locale', null, $locale, true));
-                    }
                 }
                 
                 // remove base_url from request query
                 if ($cSettings['base_url'] != $modx_base_url) {
                     $newRequestUrl = str_replace($cSettings['base_url'],'',$requestUrl);
-                    $_REQUEST[$modx->getOption('request_param_alias', null, 'q')] = $newRequestUrl;
+                    $requestedURL = $newRequestUrl;
                 }
-                
                 
             } else if ($_REQUEST['xrouting-debug'] != '1' || !$modx->getOption('xrouting.allow_debug_info', null, false)) {
                 // if no match found
@@ -159,14 +155,18 @@ switch ($modx->event->name) {
             }
         
         // output debug info
-            if (isset($_REQUEST['xrouting-debug']) && $_REQUEST['xrouting-debug'] == '1' && $modx->getOption('xrouting.allow_debug_info', null, false)) {
+            if ($_REQUEST['xrouting-debug'] == '1' && $modx->getOption('xrouting.allow_debug_info', null, false)) {
                 $debuginfo = '<pre>';
                 $debuginfo .= "## MODX context map:\n\n" . print_r($contexts,true) . "\n\n\n";
                 $debuginfo .= "## Requested URL: " . $_REQUEST[$modx->getOption('request_param_alias', null, 'q')] . "\n\n\n";
                 $debuginfo .= "## Requested URL with base_url: ". $requestUrl ."\n\n\n";
                 $debuginfo .= "## Matched context(s) (Array key defines match quality):\n\n" . print_r($matches,true) . "\n\n\n";
-                $debuginfo .= "## Request will go to context: " . $matches[@max(array_keys($matches))] . "\n\n\n";
+                $debuginfo .= "## Request will go to context: " . $matches[max(array_keys($matches))] . "\n\n\n";
                 $debuginfo .= "## Modified request URL: " . $newRequestUrl . "\n\n\n";
+                $debuginfo .= "## Use Primary URL?: " . $modx->getOption('xrouting.force_primary_url', null, true) . "\n\n\n";
+                $debuginfo .= "## Base URL Compare: " . $http_host . " VS " . $cSettings['http_host'] . "\n\n\n";
+                $debuginfo .= "## With Primary URL: " . $use_primary . "\n\n\n";
+                $debuginfo .=
                 die($debuginfo);
             }
         }
